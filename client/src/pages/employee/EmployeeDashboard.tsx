@@ -51,12 +51,46 @@ export const EmployeeDashboard: React.FC = () => {
           </p>
         </div>
 
-        <Link to="/punch">
-          <Button variant={todayAttendance?.workingStatus === 'in_progress' ? 'danger' : 'primary'} size="md">
-            <Camera className="w-4 h-4" />
-            {todayAttendance?.workingStatus === 'in_progress' ? 'Punch Out Now' : 'Punch In for Today'}
-          </Button>
-        </Link>
+        {/* Punch In / Out or Shift Ended Status */}
+        {todayAttendance?.workingStatus === 'in_progress' ? (
+          <Link to="/punch">
+            <Button variant="danger" size="md">
+              <Camera className="w-4 h-4" />
+              Punch Out Now
+            </Button>
+          </Link>
+        ) : todayAttendance?.punchOutAt || todayAttendance?.workingStatus === 'completed' || todayAttendance?.workingStatus === 'incomplete' ? (
+          todayAttendance?.workingStatus === 'completed' ? (
+            <Link to="/attendance">
+              <Button
+                variant="secondary"
+                size="md"
+                className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Shift Ended (Completed)
+              </Button>
+            </Link>
+          ) : (
+            <Link to="/attendance">
+              <Button
+                variant="secondary"
+                size="md"
+                className="border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold"
+              >
+                <AlertTriangle className="w-4 h-4 text-rose-600" />
+                Incomplete Shift Ended
+              </Button>
+            </Link>
+          )
+        ) : (
+          <Link to="/punch">
+            <Button variant="primary" size="md">
+              <Camera className="w-4 h-4" />
+              Punch In for Today
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Active Shift / Missed Punch Notification Banner */}
@@ -99,8 +133,10 @@ export const EmployeeDashboard: React.FC = () => {
             )}
           </div>
           <p className="text-[11px] text-slate-500">
-            {todayAttendance?.punchInAt
-              ? `In at ${new Date(todayAttendance.punchInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            {todayAttendance?.punchInAt && todayAttendance?.punchOutAt
+              ? `In: ${new Date(todayAttendance.punchInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Out: ${new Date(todayAttendance.punchOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${formatMins(todayAttendance.totalWorkingMinutes || 0)})`
+              : todayAttendance?.punchInAt
+              ? `In at ${new Date(todayAttendance.punchInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (Shift in progress)`
               : 'Punch in using live camera'}
           </p>
         </div>

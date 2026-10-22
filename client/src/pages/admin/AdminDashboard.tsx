@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useGetAdminDashboardQuery } from '../../services/api';
+import { useGetAdminDashboardQuery, useGetGeofenceConfigQuery } from '../../services/api';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
+import { GeofenceSettingsModal } from '../../components/admin/GeofenceSettingsModal';
 import {
   Users,
   ShieldAlert,
@@ -15,11 +16,15 @@ import {
   Building,
   Loader2,
   UserCheck,
+  Compass,
+  MapPin,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [isGeofenceModalOpen, setIsGeofenceModalOpen] = useState(false);
   const { data, isLoading } = useGetAdminDashboardQuery({ date: selectedDate });
+  const { data: geofenceData } = useGetGeofenceConfigQuery();
 
   if (isLoading) {
     return (
@@ -54,22 +59,34 @@ export const AdminDashboard: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            Shift Date:
-          </label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="rounded-lg border border-slate-300 py-1.5 px-2.5 text-xs focus:border-brand-500 focus:outline-none"
-          />
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsGeofenceModalOpen(true)}
+            className="flex items-center gap-1.5"
+          >
+            <Compass className="w-3.5 h-3.5 text-brand-600" />
+            <span>Geofence Perimeter</span>
+          </Button>
+
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              Shift Date:
+            </label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="rounded-lg border border-slate-300 py-1.5 px-2.5 text-xs focus:border-brand-500 focus:outline-none"
+            />
+          </div>
         </div>
       </div>
 
       {/* Action shortcuts */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
           to="/admin/users"
           className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-brand-300 hover:shadow-sm transition-all"
@@ -117,6 +134,27 @@ export const AdminDashboard: React.FC = () => {
           </div>
           <ArrowRight className="w-4 h-4 text-slate-400" />
         </Link>
+
+        <button
+          type="button"
+          onClick={() => setIsGeofenceModalOpen(true)}
+          className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-brand-300 hover:shadow-sm transition-all text-left group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-lg group-hover:scale-105 transition-transform">
+              <Compass className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-900">Office Geofence</h4>
+              <p className="text-[11px] text-slate-500 truncate max-w-[140px]">
+                {geofenceData?.data
+                  ? `${geofenceData.data.radiusMeters}m • ${geofenceData.data.enforceGeofence ? 'Strict' : 'Flexible'}`
+                  : 'Configure Perimeter'}
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+        </button>
       </div>
 
       {/* Metrics Row */}
@@ -232,6 +270,12 @@ export const AdminDashboard: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Geofence Configuration Modal */}
+      <GeofenceSettingsModal
+        isOpen={isGeofenceModalOpen}
+        onClose={() => setIsGeofenceModalOpen(false)}
+      />
     </div>
   );
 };

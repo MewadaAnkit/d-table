@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   useGetActiveSessionQuery,
   useGetGeofenceConfigQuery,
+  useGetEmployeeDashboardQuery,
   usePunchInMutation,
   usePunchOutMutation,
 } from '../../services/api';
@@ -25,9 +26,18 @@ import {
 export const PunchPage: React.FC = () => {
   const navigate = useNavigate();
   const { data: activeSessionData, isLoading: isCheckingSession } = useGetActiveSessionQuery();
+  const { data: dashboardData, isLoading: isLoadingDashboard } = useGetEmployeeDashboardQuery();
   const { data: geofenceData } = useGetGeofenceConfigQuery();
   const activeSession = activeSessionData?.data;
   const geofenceConfig = geofenceData?.data;
+  const todayAttendance = dashboardData?.data?.todayAttendance;
+  const isShiftEndedToday =
+    !activeSession &&
+    Boolean(
+      todayAttendance?.punchOutAt ||
+      todayAttendance?.workingStatus === 'completed' ||
+      todayAttendance?.workingStatus === 'incomplete'
+    );
 
   const [punchInApi, { isLoading: isPunchingIn }] = usePunchInMutation();
   const [punchOutApi, { isLoading: isPunchingOut }] = usePunchOutMutation();
@@ -163,15 +173,19 @@ export const PunchPage: React.FC = () => {
     );
   };
 
-  // Auto-start camera and geolocation on mount
+  // Auto-start camera and geolocation on mount (if shift not already ended)
   useEffect(() => {
-    startCamera();
-    fetchLocation();
+    if (!isShiftEndedToday) {
+      startCamera();
+      fetchLocation();
+    } else {
+      stopCamera();
+    }
 
     return () => {
       stopCamera();
     };
-  }, []);
+  }, [isShiftEndedToday]);
 
   // Update video element when stream is set
   useEffect(() => {
@@ -259,7 +273,7 @@ export const PunchPage: React.FC = () => {
     return `${h}h ${m}m`;
   };
 
-  if (isCheckingSession) {
+  if (isCheckingSession || isLoadingDashboard) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
@@ -273,10 +287,16 @@ export const PunchPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
         <div>
           <h1 className="text-xl font-bold text-slate-900">
-            {activeSession ? 'Punch Out & End Shift' : 'Punch In & Begin Shift'}
+            {activeSession
+              ? 'Punch Out & End Shift'
+              : isShiftEndedToday
+              ? `Today's Shift Ended (${todayAttendance?.workingStatus === 'completed' ? 'Completed' : 'Incomplete'})`
+              : 'Punch In & Begin Shift'}
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Capture a live camera snapshot and acquire verified coordinates to confirm attendance.
+            {isShiftEndedToday
+              ? 'Your attendance for today has already been completed and recorded.'
+              : 'Capture a live camera snapshot and acquire verified coordinates to confirm attendance.'}
           </p>
         </div>
 
@@ -291,6 +311,11 @@ export const PunchPage: React.FC = () => {
                 </p>
               </div>
             </div>
+          ) : isShiftEndedToday ? (
+            <Badge
+              status={todayAttendance?.workingStatus || 'completed'}
+              label={todayAttendance?.workingStatus === 'completed' ? 'Shift Completed' : 'Shift Ended (Incomplete)'}
+            />
           ) : (
             <Badge status="inactive" label="Shift Not Started" />
           )}
@@ -312,8 +337,79 @@ export const PunchPage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Grid: Camera Preview on Left, Location & Confirmation on Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* If shift is already ended today, show summary card instead of camera capture */}
+      {isShiftEndedToday ? (
+        <div className="bg-white p-8 rounded-xl border border-slate-200 text-center space-y-6 shadow-xs">
+          <div
+            className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center ${
+              todayAttendance?.workingStatus === 'completed'
+                ? 'bg-emerald-100 text-emerald-600'
+                : 'bg-rose-100 text-rose-600'
+            }`}
+          >
+            {todayAttendance?.workingStatus === 'completed' ? (
+              <CheckCircle2 className="w-8 h-8" />
+            ) : (
+              <AlertCircle className="w-8 h-8" />
+            )}
+          </div>
+
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">
+              Shift Ended for Today ({todayAttendance?.workingStatus === 'completed' ? 'Full Day Completed' : 'Incomplete Shift'})
+            </h2>
+            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              Your attendance punches for today ({todayAttendance?.attendanceDate}) have already been recorded. No further punches are needed today.
+            </p>
+          </div>
+
+          <div className="max-w-lg mx-auto grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-left">
+            <div>
+              <span className="text-slate-400 block text-[11px]">Punch In</span>
+              <span className="font-bold text-slate-800">
+                {todayAttendance?.punchInAt
+                  ? new Date(todayAttendance.punchInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : '-'}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[11px]">Punch Out</span>
+              <span className="font-bold text-slate-800">
+                {todayAttendance?.punchOutAt
+                  ? new Date(todayAttendance.punchOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : '-'}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[11px]">Duration</span>
+              <span className="font-bold text-slate-800">
+                {formatHrsMins(todayAttendance?.totalWorkingMinutes || 0)}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[11px]">Status</span>
+              <div className="mt-0.5">
+                <Badge status={todayAttendance?.workingStatus} />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <Link to="/dashboard">
+              <Button variant="primary" size="md">
+                Back to Dashboard
+              </Button>
+            </Link>
+            <Link to="/attendance">
+              <Button variant="outline" size="md">
+                View Attendance History
+              </Button>
+            </Link>
+          </div>
+        </div>
+      ) : (
+        /* Main Grid: Camera Preview on Left, Location & Confirmation on Right */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Camera Column (7 cols) */}
         <div className="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200 flex flex-col items-center">
           <div className="w-full flex items-center justify-between mb-3">
@@ -520,6 +616,7 @@ export const PunchPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

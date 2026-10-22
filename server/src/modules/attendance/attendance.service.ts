@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { Attendance, IAttendance } from '../../models/attendance.model.js';
 import { User, IUser } from '../../models/user.model.js';
+import { GeofenceSettings } from '../../models/settings.model.js';
 import { storageService } from '../../storage/localStorage.service.js';
 import { getAttendanceDateString, calculateMinutes, calculateDistanceMeters } from '../../utils/date.utils.js';
 import { env } from '../../config/env.js';
@@ -46,17 +47,18 @@ export class AttendanceService {
     const savedSelfie = await storageService.saveImage(payload.selfie, 'punch_in');
 
     // 4. Calculate geofence distance from configured office location
+    const geofence = await this.getGeofenceConfig();
     const distanceMeters = calculateDistanceMeters(
       payload.location.latitude,
       payload.location.longitude,
-      env.OFFICE_LAT,
-      env.OFFICE_LNG
+      geofence.officeLat,
+      geofence.officeLng
     );
-    const isWithinGeofence = distanceMeters <= env.GEOFENCE_RADIUS_METERS;
+    const isWithinGeofence = distanceMeters <= geofence.radiusMeters;
 
-    if (env.ENFORCE_GEOFENCE && !isWithinGeofence) {
+    if (geofence.enforceGeofence && !isWithinGeofence) {
       throw new AppError(
-        `Geofence restriction: You are ${Math.round(distanceMeters)}m from the office perimeter. Attendance is restricted to within ${env.GEOFENCE_RADIUS_METERS}m.`,
+        `Geofence restriction: You are ${Math.round(distanceMeters)}m from ${geofence.officeName}. Attendance is restricted to within ${geofence.radiusMeters}m.`,
         403
       );
     }
@@ -115,17 +117,18 @@ export class AttendanceService {
     // Standard shift is 8 hours = 480 minutes
     const workingStatus = totalWorkingMinutes >= 480 ? 'completed' : 'incomplete';
 
+    const geofence = await this.getGeofenceConfig();
     const distanceMeters = calculateDistanceMeters(
       payload.location.latitude,
       payload.location.longitude,
-      env.OFFICE_LAT,
-      env.OFFICE_LNG
+      geofence.officeLat,
+      geofence.officeLng
     );
-    const isWithinGeofence = distanceMeters <= env.GEOFENCE_RADIUS_METERS;
+    const isWithinGeofence = distanceMeters <= geofence.radiusMeters;
 
-    if (env.ENFORCE_GEOFENCE && !isWithinGeofence) {
+    if (geofence.enforceGeofence && !isWithinGeofence) {
       throw new AppError(
-        `Geofence restriction: You are ${Math.round(distanceMeters)}m from the office perimeter. Attendance is restricted to within ${env.GEOFENCE_RADIUS_METERS}m.`,
+        `Geofence restriction: You are ${Math.round(distanceMeters)}m from ${geofence.officeName}. Attendance is restricted to within ${geofence.radiusMeters}m.`,
         403
       );
     }
@@ -215,13 +218,68 @@ export class AttendanceService {
     return attendance as unknown as IAttendance;
   }
 
-  getGeofenceConfig() {
+  async getGeofenceConfig() {
+    try {
+      const settings = await GeofenceSettings.findOne({ key: 'default_geofence' });
+      if (settings) {
+        return {
+          officeName: settings.officeName,
+          officeLat: settings.officeLat,
+          officeLng: settings.officeLng,
+          radiusMeters: settings.radiusMeters,
+          enforceGeofence: settings.enforceGeofence,
+          updatedAt: settings.updatedAt,
+        };
+      }
+    } catch {
+      // Fallback to env on DB read failure
+    }
+
     return {
+      officeName: 'Main Office Headquarters',
       officeLat: env.OFFICE_LAT,
       officeLng: env.OFFICE_LNG,
       radiusMeters: env.GEOFENCE_RADIUS_METERS,
       enforceGeofence: env.ENFORCE_GEOFENCE,
     };
+  }
+
+  async updateGeofenceConfig(
+    adminUser: IUser,
+    payload: {
+      officeName?: string;
+      officeLat: number;
+      officeLng: number;
+      radiusMeters: number;
+      enforceGeofence: boolean;
+    }
+  ) {
+    const settings = await GeofenceSettings.findOneAndUpdate(
+      { key: 'default_geofence' },
+      {
+        $set: {
+          officeName: payload.officeName || 'Main Office Headquarters',
+          officeLat: payload.officeLat,
+          officeLng: payload.officeLng,
+          radiusMeters: payload.radiusMeters,
+          enforceGeofence: payload.enforceGeofence,
+          updatedBy: adminUser._id,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const config = {
+      officeName: settings.officeName,
+      officeLat: settings.officeLat,
+      officeLng: settings.officeLng,
+      radiusMeters: settings.radiusMeters,
+      enforceGeofence: settings.enforceGeofence,
+      updatedAt: settings.updatedAt,
+    };
+
+    broadcastEvent('geofence:updated', config);
+    return config;
   }
 }
 

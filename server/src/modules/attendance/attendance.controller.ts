@@ -40,12 +40,37 @@ export const punchOut = async (req: Request, res: Response, next: NextFunction):
   }
 };
 
-export const getGeofenceConfig = async (_req: Request, res: Response): Promise<void> => {
-  const config = attendanceService.getGeofenceConfig();
-  res.status(200).json({
-    success: true,
-    data: config,
-  });
+export const getGeofenceConfig = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const config = await attendanceService.getGeofenceConfig();
+    res.status(200).json({
+      success: true,
+      data: config,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateGeofenceConfig = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const admin = req.user!;
+    const { officeName, officeLat, officeLng, radiusMeters, enforceGeofence } = req.body;
+    const config = await attendanceService.updateGeofenceConfig(admin, {
+      officeName,
+      officeLat: Number(officeLat),
+      officeLng: Number(officeLng),
+      radiusMeters: Number(radiusMeters),
+      enforceGeofence: Boolean(enforceGeofence),
+    });
+    res.status(200).json({
+      success: true,
+      message: 'Office geofence parameters updated successfully.',
+      data: config,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const getActiveSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

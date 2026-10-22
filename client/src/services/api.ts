@@ -15,7 +15,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['User', 'Attendance', 'ActiveSession', 'Overtime', 'Dashboard', 'Reports', 'Notifications'],
+  tagTypes: ['User', 'Attendance', 'ActiveSession', 'Overtime', 'Dashboard', 'Reports', 'Notifications', 'Geofence'],
   endpoints: (builder) => ({
     // Auth endpoints
     login: builder.mutation<{ success: boolean; data: { token: string; user: User } }, any>({
@@ -218,8 +218,23 @@ export const api = createApi({
     }),
 
     // Bonus Features: Geofence config & Notifications
-    getGeofenceConfig: builder.query<{ success: boolean; data: { officeLat: number; officeLng: number; radiusMeters: number; enforceGeofence: boolean } }, void>({
+    getGeofenceConfig: builder.query<{ success: boolean; data: { officeName?: string; officeLat: number; officeLng: number; radiusMeters: number; enforceGeofence: boolean } }, void>({
       query: () => '/attendance/geofence-config',
+      providesTags: ['Geofence'],
+    }),
+    updateGeofenceConfig: builder.mutation<{ success: boolean; message: string; data: any }, {
+      officeName?: string;
+      officeLat: number;
+      officeLng: number;
+      radiusMeters: number;
+      enforceGeofence: boolean;
+    }>({
+      query: (payload) => ({
+        url: '/attendance/geofence-config',
+        method: 'PUT',
+        body: payload,
+      }),
+      invalidatesTags: ['Geofence'],
     }),
     getNotifications: builder.query<{ success: boolean; data: { notifications: Array<{ _id: string; title: string; message: string; type: string; isRead: boolean; link?: string; createdAt: string }>; unreadCount: number } }, void>({
       query: () => '/notifications',
@@ -251,6 +266,7 @@ export const {
   usePunchOutMutation,
   useGetActiveSessionQuery,
   useGetGeofenceConfigQuery,
+  useUpdateGeofenceConfigMutation,
   useGetMyAttendanceQuery,
   useGetTeamAttendanceQuery,
   useGetAllAttendanceQuery,

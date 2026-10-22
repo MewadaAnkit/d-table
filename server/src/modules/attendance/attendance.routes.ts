@@ -4,6 +4,7 @@ import {
   punchOut,
   getActiveSession,
   getGeofenceConfig,
+  updateGeofenceConfig,
   getMyAttendance,
   getTeamAttendance,
   getAllAttendance,
@@ -26,6 +27,7 @@ router.post('/punch-in', validateRequest(punchInSchema), punchIn);
 router.post('/punch-out', validateRequest(punchOutSchema), punchOut);
 router.get('/active', getActiveSession);
 router.get('/geofence-config', getGeofenceConfig);
+router.put('/geofence-config', authorizeRoles('admin'), updateGeofenceConfig);
 
 // Self attendance records
 router.get('/me', getMyAttendance);
