@@ -180,8 +180,10 @@ export class AttendanceService {
     // Check manager authorization
     if (reviewer.role === 'manager') {
       const employee = attendance.employeeId;
-      if (!employee || !employee.managerId || employee.managerId.toString() !== reviewer._id.toString()) {
-        throw new AppError('Forbidden: You can only verify attendance for employees assigned to your team.', 403);
+      const isDirectReport = employee && employee.managerId && employee.managerId.toString() === reviewer._id.toString();
+      const isSameDepartment = employee && employee.department === reviewer.department;
+      if (!isDirectReport && !isSameDepartment) {
+        throw new AppError('Forbidden: You can only verify attendance for employees in your team or department.', 403);
       }
     }
 

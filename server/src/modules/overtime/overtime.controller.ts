@@ -47,12 +47,16 @@ export const createOvertimeRequest = async (req: Request, res: Response, next: N
     attendance.overtimeStatus = 'pending';
     await attendance.save();
 
-    // Trigger notification to manager if assigned
-    if (user.managerId) {
+    // Trigger notification to manager if assigned, or department manager
+    const targetManagerId =
+      user.managerId ||
+      (await User.findOne({ role: 'manager', department: user.department, isActive: true }))?._id;
+
+    if (targetManagerId) {
       const hoursStr = (requestedMinutes / 60).toFixed(1);
       notificationService
         .createNotification(
-          user.managerId,
+          targetManagerId,
           '📋 New Overtime Request',
           `${user.name} requested ${hoursStr}h overtime for attendance on ${attendance.attendanceDate}.`,
           'overtime_requested',
@@ -121,7 +125,16 @@ export const getOvertimeRequests = async (req: Request, res: Response, next: Nex
     let query: any = {};
 
     if (user.role === 'manager') {
-      const team = await User.find({ managerId: user._id }, '_id');
+      const team = await User.find(
+        {
+          _id: { $ne: user._id },
+          $or: [
+            { managerId: user._id },
+            { department: user.department, role: 'employee' },
+          ],
+        },
+        '_id'
+      );
       const teamIds = team.map((t) => t._id);
       query.employeeId = { $in: teamIds };
     }
@@ -171,8 +184,10 @@ export const reviewOvertimeRequest = async (req: Request, res: Response, next: N
     // Scoping check for manager
     if (reviewer.role === 'manager') {
       const employee = overtime.employeeId;
-      if (!employee.managerId || employee.managerId.toString() !== reviewer._id.toString()) {
-        throw new AppError('Forbidden: You can only review overtime requests for your direct team members.', 403);
+      const isDirectReport = employee && employee.managerId && employee.managerId.toString() === reviewer._id.toString();
+      const isSameDepartment = employee && employee.department === reviewer.department;
+      if (!isDirectReport && !isSameDepartment) {
+        throw new AppError('Forbidden: You can only review overtime requests for your direct team or department.', 403);
       }
     }
 

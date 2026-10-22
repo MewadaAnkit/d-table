@@ -142,8 +142,17 @@ export const getTeamAttendance = async (req: Request, res: Response, next: NextF
   try {
     const manager = req.user!;
 
-    // Find all employees assigned to this manager
-    const teamMembers = await User.find({ managerId: manager._id }, '_id');
+    // Find all employees assigned to this manager or in manager's department
+    const teamMembers = await User.find(
+      {
+        _id: { $ne: manager._id },
+        $or: [
+          { managerId: manager._id },
+          { department: manager.department, role: 'employee' },
+        ],
+      },
+      '_id'
+    );
     const teamIds = teamMembers.map((m) => m._id);
 
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -285,10 +294,12 @@ export const getAttendanceById = async (req: Request, res: Response, next: NextF
       throw new AppError('Forbidden: You cannot access attendance records of other employees.', 403);
     }
 
-    // 2. Manager can only access their team's records
+    // 2. Manager can access their direct reports or department team members
     if (user.role === 'manager') {
-      if (!employee.managerId || employee.managerId.toString() !== user._id.toString()) {
-        throw new AppError('Forbidden: You can only access attendance records of your direct reports.', 403);
+      const isDirectReport = employee.managerId && employee.managerId.toString() === user._id.toString();
+      const isSameDepartment = employee.department === user.department;
+      if (!isDirectReport && !isSameDepartment) {
+        throw new AppError('Forbidden: You can only access attendance records of your team or department.', 403);
       }
     }
 
@@ -341,8 +352,10 @@ export const streamSelfie = async (req: Request, res: Response, next: NextFuncti
       throw new AppError('Forbidden: Access denied to other employee selfies.', 403);
     }
     if (user.role === 'manager') {
-      if (!employee.managerId || employee.managerId.toString() !== user._id.toString()) {
-        throw new AppError('Forbidden: Access denied to selfies outside your assigned team.', 403);
+      const isDirectReport = employee.managerId && employee.managerId.toString() === user._id.toString();
+      const isSameDepartment = employee.department === user.department;
+      if (!isDirectReport && !isSameDepartment) {
+        throw new AppError('Forbidden: Access denied to selfies outside your assigned team or department.', 403);
       }
     }
 

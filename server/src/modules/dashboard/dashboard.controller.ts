@@ -57,7 +57,16 @@ export const getManagerDashboard = async (req: Request, res: Response, next: Nex
     const manager = req.user!;
     const date = (req.query.date as string) || getAttendanceDateString();
 
-    const team = await User.find({ managerId: manager._id }, '_id name employeeCode department');
+    const team = await User.find(
+      {
+        _id: { $ne: manager._id },
+        $or: [
+          { managerId: manager._id },
+          { department: manager.department, role: 'employee' },
+        ],
+      },
+      '_id name employeeCode department'
+    );
     const teamIds = team.map((t) => t._id);
 
     const [

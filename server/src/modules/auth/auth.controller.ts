@@ -34,6 +34,10 @@ export const signup = async (req: Request, res: Response, next: NextFunction): P
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
+    // Auto-assign department manager if one exists
+    const userDept = department || 'General';
+    const deptManager = await User.findOne({ role: 'manager', department: userDept, isActive: true });
+
     // Enforce role = 'employee' (Public signup can never register as manager or admin)
     const user = await User.create({
       name,
@@ -41,7 +45,8 @@ export const signup = async (req: Request, res: Response, next: NextFunction): P
       passwordHash,
       role: 'employee',
       employeeCode,
-      department: department || 'General',
+      department: userDept,
+      managerId: deptManager ? deptManager._id : null,
       isActive: true,
     });
 

@@ -17,7 +17,16 @@ export const getDailyReport = async (req: Request, res: Response, next: NextFunc
     if (user.role === 'employee') {
       query.employeeId = user._id;
     } else if (user.role === 'manager') {
-      const team = await User.find({ managerId: user._id }, '_id');
+      const team = await User.find(
+        {
+          _id: { $ne: user._id },
+          $or: [
+            { managerId: user._id },
+            { department: user.department, role: 'employee' },
+          ],
+        },
+        '_id'
+      );
       const teamIds = team.map((t) => t._id);
       if (req.query.employeeId) {
         if (!teamIds.some((id) => id.toString() === req.query.employeeId)) {
@@ -104,7 +113,16 @@ export const exportReportCsv = async (req: Request, res: Response, next: NextFun
     if (user.role === 'employee') {
       query.employeeId = user._id;
     } else if (user.role === 'manager') {
-      const team = await User.find({ managerId: user._id }, '_id');
+      const team = await User.find(
+        {
+          _id: { $ne: user._id },
+          $or: [
+            { managerId: user._id },
+            { department: user.department, role: 'employee' },
+          ],
+        },
+        '_id'
+      );
       const teamIds = team.map((t) => t._id);
       if (req.query.employeeId) {
         if (!teamIds.some((id) => id.toString() === req.query.employeeId)) {
