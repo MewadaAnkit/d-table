@@ -1,4 +1,4 @@
-# Attendly — Full-Stack MERN Attendance Management System
+#  Full-Stack MERN Attendance Management System
 
 **Attendly** is an enterprise-grade Attendance Management System built with MongoDB, Express.js, React.js (Vite + TypeScript), and Node.js. It features live camera selfie verification, GPS geolocation tracking, role-based access control (RBAC), overtime request workflows, manager verification queues, administrative directory governance, and CSV report exports.
 
